@@ -1,6 +1,9 @@
 param(
   [string]$BankId,
   [string]$TaskId,
+  [string]$AccountId,
+  [string]$AccountLast4,
+  [string]$AccountLabel,
   [string]$ConfigPath = (Join-Path $PSScriptRoot "banks.json")
 )
 
@@ -128,18 +131,27 @@ function Invoke-PageExpression {
 }
 
 function New-KeywordScanScript {
-  param([string[]]$Keywords)
+  param(
+    [string[]]$Keywords,
+    [string]$AccountLast4
+  )
 
   $keywordsJson = $Keywords | ConvertTo-Json -Compress
+  $accountLast4Json = $AccountLast4 | ConvertTo-Json -Compress
   @"
 (() => {
   const keywords = $keywordsJson;
+  const accountLast4 = $accountLast4Json || "";
   const textOf = (node) => (node && node.innerText || "").replace(/\s+/g, " ").trim();
   const rows = [];
   const seen = new Set();
 
+  const accountMatch = (text) => !!accountLast4 && text.includes(accountLast4);
+  const keywordMatch = (text) => keywords.some((keyword) => text.includes(keyword));
+
   const add = (source, text, href) => {
-    if (!text || !keywords.some((keyword) => text.includes(keyword))) return;
+    if (!text) return;
+    if (!keywordMatch(text) && !accountMatch(text)) return;
     const normalized = text.slice(0, 800);
     const key = source + "|" + normalized + "|" + (href || "");
     if (seen.has(key)) return;
@@ -148,6 +160,8 @@ function New-KeywordScanScript {
       source,
       text: normalized,
       href: href || "",
+      accountLast4,
+      accountMatch: accountMatch(normalized),
       pageTitle: document.title,
       pageUrl: location.href,
       collectedAt: new Date().toISOString()
@@ -165,7 +179,7 @@ function New-KeywordScanScript {
     const lines = document.body.innerText
       .split(/\n+/)
       .map((line) => line.replace(/\s+/g, " ").trim())
-      .filter((line) => line && keywords.some((keyword) => line.includes(keyword)));
+      .filter((line) => line && (keywordMatch(line) || accountMatch(line)));
     lines.forEach((line) => add("text-line", line, ""));
   }
 
@@ -175,16 +189,23 @@ function New-KeywordScanScript {
 }
 
 function New-SnapshotScript {
-  @'
+  param([string]$AccountLast4)
+
+  $accountLast4Json = $AccountLast4 | ConvertTo-Json -Compress
+  @"
 (() => {
+  const accountLast4 = $accountLast4Json || "";
   const textOf = (node) => (node && node.innerText || "").replace(/\s+/g, " ").trim();
   const rows = [];
   const add = (source, text, extra) => {
     if (!text) return;
+    const normalized = text.slice(0, 800);
     rows.push({
       source,
-      text: text.slice(0, 800),
+      text: normalized,
       href: extra || "",
+      accountLast4,
+      accountMatch: !!accountLast4 && normalized.includes(accountLast4),
       pageTitle: document.title,
       pageUrl: location.href,
       collectedAt: new Date().toISOString()
@@ -208,7 +229,7 @@ function New-SnapshotScript {
 
   return rows;
 })()
-'@
+"@
 }
 
 try {
@@ -231,13 +252,13 @@ try {
     throw "Unknown task id '$TaskId' for bank '$BankId'"
   }
 
-  Write-Log "Started. Bank=$BankId Task=$TaskId Kind=$($task.kind)"
+  Write-Log "Started. Bank=$BankId Task=$TaskId Kind=$($task.kind) AccountId=$AccountId AccountLabel=$AccountLabel AccountLast4=$AccountLast4"
   $tab = Get-BrowserTab -Bank $bank
 
   if ($task.kind -eq "snapshot") {
-    $expression = New-SnapshotScript
+    $expression = New-SnapshotScript -AccountLast4 $AccountLast4
   } else {
-    $expression = New-KeywordScanScript -Keywords @($task.keywords)
+    $expression = New-KeywordScanScript -Keywords @($task.keywords) -AccountLast4 $AccountLast4
   }
 
   $rows = Invoke-PageExpression -Tab $tab -Expression $expression
@@ -248,12 +269,18 @@ try {
     $prefix = "$BankId-$TaskId"
   }
 
+  $accountSuffix = if ($AccountId) { $AccountId } elseif ($AccountLast4) { "acct-$AccountLast4" } else { "" }
+  if ($accountSuffix) {
+    $accountSuffix = $accountSuffix -replace "[^a-zA-Z0-9_-]", "-"
+    $prefix = "$prefix-$accountSuffix"
+  }
+
   $csvPath = Join-Path $baseDir "$prefix.csv"
   $jsonPath = Join-Path $baseDir "$prefix.json"
   $textPath = Join-Path $baseDir "$prefix.txt"
 
   $rows |
-    Select-Object source, text, href, pageTitle, pageUrl, collectedAt |
+    Select-Object source, text, href, accountLast4, accountMatch, pageTitle, pageUrl, collectedAt |
     Export-Csv -LiteralPath $csvPath -NoTypeInformation -Encoding UTF8
 
   $rows |

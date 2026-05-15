@@ -4,5 +4,6 @@ bank-agent.log
 *.json
 *.txt
 !banks.json
+!accounts.json
 edge-icbc-profile/
 edge-*-profile/
