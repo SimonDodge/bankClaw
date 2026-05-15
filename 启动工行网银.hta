@@ -185,10 +185,13 @@
     }
 
     function log(text) {
-      var file = fso().OpenTextFile(logPath, 8, true, 0);
-      var now = new Date();
-      file.WriteLine("[" + now.toLocaleString() + "." + ("00" + now.getMilliseconds()).slice(-3) + "] [hta] " + text);
-      file.Close();
+      try {
+        var file = fso().OpenTextFile(logPath, 8, true);
+        var now = new Date();
+        file.WriteLine("[" + now.toLocaleString() + "." + ("00" + now.getMilliseconds()).slice(-3) + "] [hta] " + text);
+        file.Close();
+      } catch (ignored) {
+      }
     }
 
     function readText(path) {
