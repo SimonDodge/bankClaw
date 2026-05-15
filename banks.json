@@ -17,13 +17,6 @@
       },
       "tasks": [
         {
-          "id": "bond-products",
-          "name": "采集债券相关信息",
-          "kind": "keyword-scan",
-          "outputPrefix": "icbc-bond-products",
-          "keywords": ["债券", "债", "固收", "固定收益", "国债", "地方债", "可转债"]
-        },
-        {
           "id": "balance",
           "name": "采集账户余额线索",
           "kind": "keyword-scan",

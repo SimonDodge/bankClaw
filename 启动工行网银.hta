@@ -122,6 +122,14 @@
       return text;
     }
 
+    function parseJson(text) {
+      if (typeof JSON !== "undefined" && JSON.parse) {
+        return JSON.parse(text);
+      }
+
+      return eval("(" + text + ")");
+    }
+
     function selectedBank() {
       var bankId = document.getElementById("bankSelect").value;
       for (var i = 0; i < config.banks.length; i++) {
@@ -140,7 +148,7 @@
     }
 
     function loadConfig() {
-      config = JSON.parse(readText(configPath));
+      config = parseJson(readText(configPath));
       var bankSelect = document.getElementById("bankSelect");
       bankSelect.options.length = 0;
 

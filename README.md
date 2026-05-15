@@ -8,7 +8,6 @@
 - `banks.json`：银行和采集任务配置。
 - `bank-agent.ps1`：通用采集引擎，读取 `banks.json` 后连接 Edge 当前页面。
 - `focus-account.ps1`：可选的输入框聚焦辅助脚本。
-- `collect-bond-products.ps1`：兼容旧用法的债券采集包装脚本。
 
 ## 使用流程
 

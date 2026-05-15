@@ -1,8 +1,5 @@
 icbc-launch.log
 bank-agent.log
-bond-products.csv
-bond-products.json
-bond-products.txt
 *.csv
 *.json
 *.txt
