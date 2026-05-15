@@ -1,0 +1,147 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>启动工行网银</title>
+  <hta:application
+    applicationname="启动工行网银"
+    border="thin"
+    caption="yes"
+    maximizebutton="no"
+    minimizebutton="yes"
+    scroll="no"
+    singleinstance="yes"
+    sysmenu="yes"
+    windowstate="normal"
+  />
+  <style>
+    body {
+      margin: 0;
+      font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+      background: #f6f7f9;
+      color: #20242a;
+    }
+
+    .app {
+      width: 360px;
+      padding: 28px 26px 24px;
+      box-sizing: border-box;
+    }
+
+    h1 {
+      margin: 0 0 18px;
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: 0;
+    }
+
+    button {
+      width: 100%;
+      height: 46px;
+      border: 0;
+      border-radius: 6px;
+      background: #d71920;
+      color: #fff;
+      font-size: 18px;
+      font-weight: 600;
+      cursor: hand;
+    }
+
+    button:disabled {
+      background: #a9afb8;
+      cursor: default;
+    }
+
+    #status {
+      margin-top: 14px;
+      min-height: 20px;
+      font-size: 13px;
+      color: #5b6573;
+    }
+  </style>
+  <script language="javascript">
+    var icbcUrl = "https://mybank.icbc.com.cn/icbc/newperbank/perbank3/frame/frame_index.jsp";
+    var edgePath = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
+    var focusScript = "C:\\Users\\ASUS ZenBook\\Documents\\New project\\focus-account.ps1";
+    var logPath = "C:\\Users\\ASUS ZenBook\\Documents\\New project\\icbc-launch.log";
+
+    function setStatus(text) {
+      document.getElementById("status").innerText = text;
+    }
+
+    function log(shell, text) {
+      var fso = new ActiveXObject("Scripting.FileSystemObject");
+      var file = fso.OpenTextFile(logPath, 8, true, -1);
+      file.WriteLine("[" + new Date().toLocaleString() + "." + ("00" + new Date().getMilliseconds()).slice(-3) + "] [hta] " + text);
+      file.Close();
+    }
+
+    function sendFullScreen(shell) {
+      var activated = false;
+      var titles = ["中国工商银行", "ICBC", "Microsoft Edge"];
+
+      for (var i = 0; i < titles.length; i++) {
+        if (shell.AppActivate(titles[i])) {
+          activated = true;
+          log(shell, "Activated window by title: " + titles[i]);
+          break;
+        }
+      }
+
+      if (!activated) {
+        var fallbackActivated = shell.AppActivate("msedge");
+        log(shell, "Fallback AppActivate(msedge): " + fallbackActivated);
+      }
+
+      window.setTimeout(function () {
+        log(shell, "Sending F11.");
+        shell.SendKeys("{F11}");
+        setStatus("已发送 F11，正在聚焦密码输入框...");
+
+        window.setTimeout(function () {
+          log(shell, "Running focus script: " + focusScript);
+          shell.Run('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + focusScript + '"', 0, false);
+          setStatus("已打开全屏并聚焦密码输入框。");
+          document.getElementById("startButton").disabled = false;
+        }, 2200);
+      }, 500);
+    }
+
+    function startBank() {
+      var button = document.getElementById("startButton");
+      button.disabled = true;
+      setStatus("正在启动 Microsoft Edge...");
+
+      try {
+        var shell = new ActiveXObject("WScript.Shell");
+        log(shell, "Start button clicked.");
+        log(shell, "Launching Edge path: " + edgePath);
+        log(shell, "Target URL: " + icbcUrl);
+        shell.Run('"' + edgePath + '" "' + icbcUrl + '"', 1, false);
+        setStatus("页面打开中，稍后自动全屏...");
+        log(shell, "Edge launch command sent. Waiting before activation.");
+
+        window.setTimeout(function () {
+          sendFullScreen(shell);
+        }, 3500);
+      } catch (e) {
+        try { log(new ActiveXObject("WScript.Shell"), "Error: " + e.message); } catch (ignored) {}
+        setStatus("启动失败：" + e.message);
+        button.disabled = false;
+      }
+    }
+
+    window.onload = function () {
+      window.resizeTo(380, 210);
+      window.moveTo((screen.width - 380) / 2, (screen.height - 210) / 2);
+    };
+  </script>
+</head>
+<body>
+  <div class="app">
+    <h1>工行网银启动器</h1>
+    <button id="startButton" onclick="startBank()">启动</button>
+    <div id="status">点击启动后会打开 Edge 并进入 F11 全屏。</div>
+  </div>
+</body>
+</html>
