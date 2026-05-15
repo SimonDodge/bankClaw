@@ -1,0 +1,50 @@
+{
+  "defaultBankId": "icbc",
+  "banks": [
+    {
+      "id": "icbc",
+      "name": "ICBC 工商银行",
+      "startUrl": "https://mybank.icbc.com.cn/icbc/newperbank/perbank3/frame/frame_index.jsp",
+      "matchUrl": "icbc",
+      "matchTitle": "ICBC|工商|工行",
+      "profileDir": "edge-icbc-profile",
+      "debugPort": 9222,
+      "focus": {
+        "enabled": true,
+        "xRatio": 0.742,
+        "yRatio": 0.447,
+        "label": "密码输入框"
+      },
+      "tasks": [
+        {
+          "id": "bond-products",
+          "name": "采集债券相关信息",
+          "kind": "keyword-scan",
+          "outputPrefix": "icbc-bond-products",
+          "keywords": ["债券", "债", "固收", "固定收益", "国债", "地方债", "可转债"]
+        },
+        {
+          "id": "balance",
+          "name": "采集账户余额线索",
+          "kind": "keyword-scan",
+          "outputPrefix": "icbc-balance",
+          "keywords": ["余额", "账户余额", "可用余额", "人民币", "活期", "总资产", "可用"]
+        },
+        {
+          "id": "transactions",
+          "name": "采集明细线索",
+          "kind": "keyword-scan",
+          "outputPrefix": "icbc-transactions",
+          "keywords": ["明细", "交易", "收入", "支出", "对方", "摘要", "转账", "余额"]
+        },
+        {
+          "id": "snapshot",
+          "name": "采集页面结构快照",
+          "kind": "snapshot",
+          "outputPrefix": "icbc-page-snapshot",
+          "keywords": []
+        }
+      ]
+    }
+  ]
+}

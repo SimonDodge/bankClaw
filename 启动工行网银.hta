@@ -2,9 +2,9 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>启动工行网银</title>
+  <title>银行采集助手</title>
   <hta:application
-    applicationname="启动工行网银"
+    applicationname="银行采集助手"
     border="thin"
     caption="yes"
     maximizebutton="no"
@@ -23,8 +23,8 @@
     }
 
     .app {
-      width: 360px;
-      padding: 28px 26px 24px;
+      width: 430px;
+      padding: 24px 26px 22px;
       box-sizing: border-box;
     }
 
@@ -35,16 +35,39 @@
       letter-spacing: 0;
     }
 
+    label {
+      display: block;
+      margin: 10px 0 6px;
+      font-size: 13px;
+      color: #4a5564;
+    }
+
+    select {
+      width: 100%;
+      height: 36px;
+      box-sizing: border-box;
+      border: 1px solid #cbd3df;
+      border-radius: 5px;
+      background: #fff;
+      font-size: 14px;
+      color: #20242a;
+    }
+
     button {
       width: 100%;
-      height: 46px;
+      height: 44px;
       border: 0;
       border-radius: 6px;
       background: #d71920;
       color: #fff;
-      font-size: 18px;
+      font-size: 17px;
       font-weight: 600;
       cursor: hand;
+    }
+
+    button.secondary {
+      margin-top: 10px;
+      background: #404a57;
     }
 
     button:disabled {
@@ -54,94 +77,208 @@
 
     #status {
       margin-top: 14px;
-      min-height: 20px;
+      min-height: 38px;
       font-size: 13px;
+      line-height: 1.5;
       color: #5b6573;
     }
   </style>
   <script language="javascript">
-    var icbcUrl = "https://mybank.icbc.com.cn/icbc/newperbank/perbank3/frame/frame_index.jsp";
+    var baseDir = "C:\\Users\\ASUS ZenBook\\Documents\\New project";
+    var configPath = baseDir + "\\banks.json";
     var edgePath = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
-    var focusScript = "C:\\Users\\ASUS ZenBook\\Documents\\New project\\focus-account.ps1";
-    var logPath = "C:\\Users\\ASUS ZenBook\\Documents\\New project\\icbc-launch.log";
+    var focusScript = baseDir + "\\focus-account.ps1";
+    var agentScript = baseDir + "\\bank-agent.ps1";
+    var logPath = baseDir + "\\bank-agent.log";
+    var config = null;
+
+    function shell() {
+      return new ActiveXObject("WScript.Shell");
+    }
+
+    function fso() {
+      return new ActiveXObject("Scripting.FileSystemObject");
+    }
 
     function setStatus(text) {
       document.getElementById("status").innerText = text;
     }
 
-    function log(shell, text) {
-      var fso = new ActiveXObject("Scripting.FileSystemObject");
-      var file = fso.OpenTextFile(logPath, 8, true, -1);
-      file.WriteLine("[" + new Date().toLocaleString() + "." + ("00" + new Date().getMilliseconds()).slice(-3) + "] [hta] " + text);
+    function log(text) {
+      var file = fso().OpenTextFile(logPath, 8, true, -1);
+      var now = new Date();
+      file.WriteLine("[" + now.toLocaleString() + "." + ("00" + now.getMilliseconds()).slice(-3) + "] [hta] " + text);
       file.Close();
     }
 
-    function sendFullScreen(shell) {
+    function readText(path) {
+      var stream = new ActiveXObject("ADODB.Stream");
+      stream.Type = 2;
+      stream.Charset = "utf-8";
+      stream.Open();
+      stream.LoadFromFile(path);
+      var text = stream.ReadText();
+      stream.Close();
+      return text;
+    }
+
+    function selectedBank() {
+      var bankId = document.getElementById("bankSelect").value;
+      for (var i = 0; i < config.banks.length; i++) {
+        if (config.banks[i].id === bankId) return config.banks[i];
+      }
+      return null;
+    }
+
+    function selectedTask() {
+      var bank = selectedBank();
+      var taskId = document.getElementById("taskSelect").value;
+      for (var i = 0; i < bank.tasks.length; i++) {
+        if (bank.tasks[i].id === taskId) return bank.tasks[i];
+      }
+      return null;
+    }
+
+    function loadConfig() {
+      config = JSON.parse(readText(configPath));
+      var bankSelect = document.getElementById("bankSelect");
+      bankSelect.options.length = 0;
+
+      for (var i = 0; i < config.banks.length; i++) {
+        var bank = config.banks[i];
+        bankSelect.options.add(new Option(bank.name, bank.id));
+        if (bank.id === config.defaultBankId) {
+          bankSelect.selectedIndex = i;
+        }
+      }
+
+      loadTasks();
+      setStatus("选择银行后点击启动。登录完成后再运行采集任务。");
+    }
+
+    function loadTasks() {
+      var bank = selectedBank();
+      var taskSelect = document.getElementById("taskSelect");
+      taskSelect.options.length = 0;
+
+      for (var i = 0; i < bank.tasks.length; i++) {
+        var task = bank.tasks[i];
+        taskSelect.options.add(new Option(task.name, task.id));
+      }
+    }
+
+    function activateEdge(appShell, bank) {
       var activated = false;
-      var titles = ["中国工商银行", "ICBC", "Microsoft Edge"];
+      var titles = [bank.name, "ICBC", "Microsoft Edge"];
 
       for (var i = 0; i < titles.length; i++) {
-        if (shell.AppActivate(titles[i])) {
+        if (appShell.AppActivate(titles[i])) {
           activated = true;
-          log(shell, "Activated window by title: " + titles[i]);
+          log("Activated window by title: " + titles[i]);
           break;
         }
       }
 
       if (!activated) {
-        var fallbackActivated = shell.AppActivate("msedge");
-        log(shell, "Fallback AppActivate(msedge): " + fallbackActivated);
+        log("Fallback AppActivate(msedge): " + appShell.AppActivate("msedge"));
       }
-
-      window.setTimeout(function () {
-        log(shell, "Sending F11.");
-        shell.SendKeys("{F11}");
-        setStatus("已发送 F11，正在聚焦密码输入框...");
-
-        window.setTimeout(function () {
-          log(shell, "Running focus script: " + focusScript);
-          shell.Run('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + focusScript + '"', 0, false);
-          setStatus("已打开全屏并聚焦密码输入框。");
-          document.getElementById("startButton").disabled = false;
-        }, 2200);
-      }, 500);
     }
 
     function startBank() {
+      var bank = selectedBank();
       var button = document.getElementById("startButton");
       button.disabled = true;
-      setStatus("正在启动 Microsoft Edge...");
+      setStatus("正在启动 " + bank.name + "...");
 
       try {
-        var shell = new ActiveXObject("WScript.Shell");
-        log(shell, "Start button clicked.");
-        log(shell, "Launching Edge path: " + edgePath);
-        log(shell, "Target URL: " + icbcUrl);
-        shell.Run('"' + edgePath + '" "' + icbcUrl + '"', 1, false);
+        var appShell = shell();
+        var profileDir = baseDir + "\\" + bank.profileDir;
+        var port = bank.debugPort || 9222;
+        var args = '"' + edgePath + '" --remote-debugging-port=' + port + ' --user-data-dir="' + profileDir + '" "' + bank.startUrl + '"';
+
+        log("Start button clicked. Bank=" + bank.id + " Url=" + bank.startUrl);
+        appShell.Run(args, 1, false);
         setStatus("页面打开中，稍后自动全屏...");
-        log(shell, "Edge launch command sent. Waiting before activation.");
 
         window.setTimeout(function () {
-          sendFullScreen(shell);
+          activateEdge(appShell, bank);
+
+          window.setTimeout(function () {
+            log("Sending F11.");
+            appShell.SendKeys("{F11}");
+
+            if (bank.focus && bank.focus.enabled) {
+              setStatus("已发送 F11，正在聚焦" + bank.focus.label + "...");
+              window.setTimeout(function () {
+                var focusArgs = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + focusScript + '" -XRatio ' + bank.focus.xRatio + ' -YRatio ' + bank.focus.yRatio;
+                log("Running focus script: " + focusArgs);
+                appShell.Run(focusArgs, 0, false);
+                setStatus("已打开全屏。请手动完成登录，之后运行采集任务。");
+                button.disabled = false;
+              }, 2200);
+            } else {
+              setStatus("已打开全屏。请手动完成登录，之后运行采集任务。");
+              button.disabled = false;
+            }
+          }, 500);
         }, 3500);
       } catch (e) {
-        try { log(new ActiveXObject("WScript.Shell"), "Error: " + e.message); } catch (ignored) {}
+        log("Start error: " + e.message);
         setStatus("启动失败：" + e.message);
         button.disabled = false;
       }
     }
 
+    function runTask() {
+      var bank = selectedBank();
+      var task = selectedTask();
+      var button = document.getElementById("taskButton");
+      button.disabled = true;
+      setStatus("正在运行任务：" + task.name);
+
+      try {
+        var appShell = shell();
+        var command = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + agentScript + '" -BankId "' + bank.id + '" -TaskId "' + task.id + '"';
+        log("Task button clicked. " + command);
+        var exitCode = appShell.Run(command, 0, true);
+        log("Task exited with code: " + exitCode);
+
+        if (exitCode === 0) {
+          setStatus("任务完成。输出前缀：" + task.outputPrefix + "（csv/json/txt）。");
+        } else {
+          setStatus("任务失败。请查看 bank-agent.log，退出码 " + exitCode + "。");
+        }
+      } catch (e) {
+        log("Task error: " + e.message);
+        setStatus("任务失败：" + e.message);
+      }
+
+      button.disabled = false;
+    }
+
     window.onload = function () {
-      window.resizeTo(380, 210);
-      window.moveTo((screen.width - 380) / 2, (screen.height - 210) / 2);
+      window.resizeTo(470, 390);
+      window.moveTo((screen.width - 470) / 2, (screen.height - 390) / 2);
+      loadConfig();
     };
   </script>
 </head>
 <body>
   <div class="app">
-    <h1>工行网银启动器</h1>
-    <button id="startButton" onclick="startBank()">启动</button>
-    <div id="status">点击启动后会打开 Edge 并进入 F11 全屏。</div>
+    <h1>银行采集助手</h1>
+
+    <label for="bankSelect">银行</label>
+    <select id="bankSelect" onchange="loadTasks()"></select>
+
+    <label for="taskSelect">采集任务</label>
+    <select id="taskSelect"></select>
+
+    <div style="margin-top:16px;">
+      <button id="startButton" onclick="startBank()">启动银行页面</button>
+      <button id="taskButton" class="secondary" onclick="runTask()">运行采集任务</button>
+    </div>
+
+    <div id="status">正在读取配置...</div>
   </div>
 </body>
 </html>
